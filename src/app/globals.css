@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #fafaf9;
+  --fg: #1c1917;
+  --muted: #57534e;
+  --border: #d6d3d1;
+  --brand: #c2410c;
+  --brand-fg: #ffffff;
+  --danger: #b91c1c;
+  --ok: #166534;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0c0a09;
+    --fg: #fafaf9;
+    --muted: #a8a29e;
+    --border: #44403c;
+    --brand: #fb923c;
+    --brand-fg: #1c1917;
+    --danger: #f87171;
+    --ok: #4ade80;
+  }
+}
+body { background: var(--bg); color: var(--fg); }
