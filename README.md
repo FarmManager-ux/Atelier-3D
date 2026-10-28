@@ -3,7 +3,7 @@
 Portal em pt-PT para clientes do Atelier 3D (impressão 3D, Portugal): contas de particulares e
 empresas, orçamentos, projetos e ficheiros 3D, encomendas e administração.
 
-**Estado: Fase 0 (fundações).** Ver [docs/PLANO.md](docs/PLANO.md) para o que existe e o que falta.
+**Estado: Fase 1 (perfis, equipas e biblioteca privada de ficheiros) implementada e testada localmente.** Ver [docs/PLANO.md](docs/PLANO.md) para o que existe e o que falta.
 
 ## Stack
 Next.js 16 (App Router) · TypeScript · Tailwind 4 · Supabase (PostgreSQL, Auth, Storage; região UE) · Vitest · GitHub Actions.
@@ -32,4 +32,6 @@ docs/               arquitetura, segurança, plano, ações manuais
 - [Arquitetura e decisões](docs/ARQUITETURA.md)
 - [Segurança e RGPD](docs/SEGURANCA.md)
 - [Plano faseado](docs/PLANO.md)
+- [Migrações da base de dados](docs/MIGRACOES.md)
+- [Testes: o que provam e o que não provam](docs/TESTES.md)
 - [Ações manuais pendentes](docs/ACOES-MANUAIS.md)

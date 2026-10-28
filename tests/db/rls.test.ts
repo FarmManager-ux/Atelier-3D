@@ -44,7 +44,7 @@ beforeAll(async () => {
   await asUser(pool, diogo, (q) => q(`select public.accept_invitation($1)`, [t2]), { commit: true });
 
   await asUser(pool, bruno, (q) => q(`insert into public.account_fiscal_data (account_id, legal_name, nif) values ($1,'Acme, Lda','123456789')`, [acme]), { commit: true });
-  await asUser(pool, eva, (q) => q(`insert into public.account_fiscal_data (account_id, legal_name, nif) values ($1,'Beta, SA','987654321')`, [beta]), { commit: true });
+  await asUser(pool, eva, (q) => q(`insert into public.account_fiscal_data (account_id, legal_name, nif) values ($1,'Beta, SA','987654322')`, [beta]), { commit: true });
 });
 
 afterAll(async () => {
@@ -249,14 +249,14 @@ describe("equipa interna", () => {
 
 describe("auditoria", () => {
   it("regista criação de contas, membros e alteração fiscal sem guardar valores", async () => {
-    await asUser(pool, bruno, (q) => q(`update public.account_fiscal_data set nif = '555555555' where account_id = $1`, [acme]), { commit: true });
+    await asUser(pool, bruno, (q) => q(`update public.account_fiscal_data set nif = '555555550' where account_id = $1`, [acme]), { commit: true });
     const { rows } = await pool.query(
       `select action, metadata from public.audit_log where account_id = $1 order by id`, [acme]);
     const actions = rows.map((r) => r.action);
     expect(actions).toContain("accounts.insert");
     expect(actions).toContain("account_members.insert");
     expect(actions).toContain("account_fiscal_data.update");
-    expect(JSON.stringify(rows)).not.toContain("555555555");
+    expect(JSON.stringify(rows)).not.toContain("555555550");
     expect(JSON.stringify(rows)).not.toContain("123456789");
     const upd = rows.find((r) => r.action === "account_fiscal_data.update");
     expect(upd.metadata.changed).toEqual(["nif"]);

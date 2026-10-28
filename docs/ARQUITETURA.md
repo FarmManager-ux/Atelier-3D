@@ -20,6 +20,24 @@ Monólito modular em Next.js, com Supabase como backend gerido (PostgreSQL + Aut
 - `account_fiscal_data` (NIF/nome fiscal, separado; visível a owner/admin da conta e admins da equipa; **não** a operadores)
 - `audit_log` (append-only; guarda ações e nomes de colunas alteradas, nunca valores pessoais/fiscais)
 
+## Modelo de dados (Fase 1)
+- `accounts` ganha dados comerciais (telefone, site, email de faturação, atividade); `account_fiscal_data` valida o NIF português (dígito de controlo) **na BD**.
+- `account_contacts` (um principal por conta) e `account_addresses` (faturação/envio/outra, código postal PT `0000-000`, uma predefinida por tipo).
+- `projects` → `files` (ficheiro lógico: tipo `model_3d`/`image`, versão aprovada, arquivo) → `file_versions` (**imutáveis**: caminho, tamanho, SHA-256 declarado e verificado, estado `pending|available|rejected`).
+- `file_type_rules`: formatos e limites (STL/3MF/STEP/STP/OBJ até 100 MB; PNG/JPG/JPEG/WebP até 15 MB). Valores propostos por mim e ainda **não confirmados por si** — são configuráveis.
+- Integridade composta: um ficheiro só pode ficar num projeto **da mesma conta** (FK composta).
+
+## Fluxo de upload (seguro)
+1. O browser calcula o SHA-256 e chama `prepareUpload` (Server Action): valida formato/tamanho, chama `begin_file_upload` (permissões na BD) e pede um URL de upload assinado ao Storage.
+2. O browser envia o ficheiro **diretamente** para o Storage (não passa pelo servidor Next.js; sem limite de 4,5 MB do alojamento). A política do Storage só deixa escrever no caminho reservado pelo próprio autor.
+3. `completeUpload`: o servidor (chave de serviço) descarrega em *streaming*, confirma **tamanho real**, **SHA-256** e **assinatura do formato**; só então chama `complete_file_upload`, que passa a versão a `available`. Falha → `rejected` e objeto apagado.
+4. Só versões `available` são visíveis a colegas/equipa e descarregáveis (URL assinado de 60 s gerado com a sessão do utilizador, sujeito à RLS do Storage).
+Caminho no Storage: `{account_id}/{file_id}/{version_id}` (só UUIDs; o nome original fica na BD).
+
+## Garantias de versionamento
+- Versões nunca são alteradas ou apagadas (gatilho, mesmo para SQL privilegiado); apagar exige a rotina RGPD explícita.
+- Nova versão **nunca** muda a versão aprovada; a aprovação é uma ação explícita de owner/admin (ou admin da equipa) e fica na auditoria.
+
 ## Permissões
 | Papel | Conta | Membros | Fiscais | Convites | Auditoria |
 |---|---|---|---|---|---|
@@ -28,6 +46,8 @@ Monólito modular em Next.js, com Supabase como backend gerido (PostgreSQL + Aut
 | owner | idem | gerir todos | idem | convidar `member`/`admin` | idem |
 | staff operator | ler | ler | — | — | — |
 | staff admin | tudo | ler | ler/editar | ler | tudo |
+
+Fase 1: contactos e moradas — leitura por qualquer membro, escrita por owner/admin. Projetos — qualquer membro cria/edita (sem eliminar). Ficheiros — qualquer membro carrega; só owner/admin aprovam versões e arquivam; a equipa (operador e admin) lê ficheiros disponíveis, mas operadores continuam sem dados fiscais.
 
 Regras na BD: conta de particular tem 1 utilizador; nunca fica sem proprietário; tipo/criador da conta imutáveis.
 

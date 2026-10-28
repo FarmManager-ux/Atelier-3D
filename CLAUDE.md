@@ -4,7 +4,7 @@ Plataforma de clientes e produção do Atelier 3D (Portugal). Interface **sempre
 Desenvolvimento exclusivamente em sessões cloud; nada pode depender de uma máquina local.
 
 ## Comandos
-- `pnpm install` · `pnpm check` (lint + tipos + testes) · `pnpm build`
+- `pnpm install` · `pnpm check` (lint + tipos + testes; ver docs/TESTES.md)
 - Testes de BD precisam de PostgreSQL 16: `pg_ctlcluster 16 main start` e, uma vez,
   `su postgres -c "psql -c \"create role atelier_test superuser login password 'test'\""`
   (URL por omissão: `postgres://atelier_test:test@127.0.0.1:5432/postgres`; ou `TEST_DATABASE_URL`).

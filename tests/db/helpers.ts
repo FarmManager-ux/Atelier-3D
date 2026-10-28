@@ -25,6 +25,8 @@ export async function createTestDatabase(): Promise<{
   const url = new URL(adminUrl());
   url.pathname = `/${name}`;
   const pool = new pg.Pool({ connectionString: url.toString(), max: 4 });
+  // Ligações inativas podem ser terminadas pelo DROP DATABASE ... FORCE no fim; é esperado.
+  pool.on("error", () => {});
 
   await pool.query(
     readFileSync(join(ROOT, "tests/db/supabase-shim.sql"), "utf8").replace(
@@ -76,6 +78,26 @@ export async function asUser<T>(
     }
     const result = await fn((sql, params) => client.query(sql, params));
     await client.query(commit ? "commit" : "rollback");
+    return result;
+  } catch (e) {
+    await client.query("rollback").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+/** Executa `fn` como o servidor com chave de serviço (papel service_role). */
+export async function asService<T>(
+  pool: pg.Pool,
+  fn: (q: (sql: string, params?: unknown[]) => Promise<pg.QueryResult>) => Promise<T>,
+): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    await client.query("set local role service_role");
+    const result = await fn((sql, params) => client.query(sql, params));
+    await client.query("commit");
     return result;
   } catch (e) {
     await client.query("rollback").catch(() => {});
