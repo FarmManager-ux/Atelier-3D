@@ -12,6 +12,10 @@ export default defineConfig({
       },
       {
         resolve: { alias },
+        test: { name: "arch", include: ["tests/architecture/**/*.test.ts"], environment: "node" },
+      },
+      {
+        resolve: { alias },
         test: {
           name: "db",
           include: ["tests/db/**/*.test.ts"],

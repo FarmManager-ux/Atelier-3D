@@ -4,10 +4,16 @@ out/
 coverage/
 *.tsbuildinfo
 next-env.d.ts
+.DS_Store
+.vercel/
+
+# Segredos e ambiente (nunca em Git)
 .env
 .env.*
 !.env.example
-.DS_Store
-.vercel/
+
+# Backups locais (cifrados)
+backups/
+
 supabase/.temp/
 supabase/.branches/

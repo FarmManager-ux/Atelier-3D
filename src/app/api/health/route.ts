@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { isSupabaseConfigured } from "@/lib/env";
+import { isSupabaseConfigured } from "@/shared/config/env";
 
-// Sem dados sensíveis: apenas estado da aplicação para monitorização.
+// Apenas estado da aplicação para monitorização; nunca dados sensíveis.
 export function GET() {
   return NextResponse.json(
     { status: "ok", supabaseConfigured: isSupabaseConfigured() },

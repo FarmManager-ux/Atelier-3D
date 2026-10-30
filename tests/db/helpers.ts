@@ -28,12 +28,7 @@ export async function createTestDatabase(): Promise<{
   // Ligações inativas podem ser terminadas pelo DROP DATABASE ... FORCE no fim; é esperado.
   pool.on("error", () => {});
 
-  await pool.query(
-    readFileSync(join(ROOT, "tests/db/supabase-shim.sql"), "utf8").replace(
-      "create schema if not exists auth;",
-      "create schema if not exists auth; create schema if not exists extensions;",
-    ),
-  );
+  await pool.query(readFileSync(join(ROOT, "tests/db/supabase-shim.sql"), "utf8"));
   const dir = join(ROOT, "supabase/migrations");
   for (const f of readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {
     await pool.query(readFileSync(join(dir, f), "utf8"));
@@ -105,4 +100,10 @@ export async function asService<T>(
   } finally {
     client.release();
   }
+}
+
+export async function createStaff(pool: pg.Pool, email: string, role: string) {
+  const id = await createUser(pool, email);
+  await pool.query(`insert into public.staff_members (user_id, role_key) values ($1, $2)`, [id, role]);
+  return id;
 }

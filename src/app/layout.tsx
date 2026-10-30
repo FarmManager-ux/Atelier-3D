@@ -1,13 +1,24 @@
 import type { Metadata, Viewport } from "next";
+import "@fontsource/barlow-condensed/500.css";
+import "@fontsource/barlow-condensed/700.css";
+import "@fontsource/ibm-plex-sans/400.css";
+import "@fontsource/ibm-plex-sans/600.css";
+import "@fontsource/ibm-plex-mono/400.css";
 import "./globals.css";
-import { messages } from "@/lib/i18n/pt-PT";
+import { common } from "@/shared/i18n/pt-PT";
 
 export const metadata: Metadata = {
-  title: { default: messages.brand, template: `%s · ${messages.brand}` },
-  description: "Área de cliente do Atelier 3D: orçamentos, projetos e encomendas de impressão 3D.",
+  title: { default: common.product, template: `%s · ${common.brand}` },
+  description: "Plataforma de gestão do Atelier 3D: impressão 3D FDM, orçamentos, encomendas e produção.",
+  // Em construção: sem indexação até ao lançamento da Fase 1.
   robots: { index: false, follow: false },
 };
-export const viewport: Viewport = { width: "device-width", initialScale: 1 };
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#0a0a0b",
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

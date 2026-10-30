@@ -1,35 +1,29 @@
 # Segurança e RGPD
 
-## Implementado e testado na Fase 0
-- RLS em todas as tabelas; `anon` sem acesso; privilégios mínimos a `authenticated` (testes em `tests/db/rls.test.ts`, incl. teste de mutação manual).
-- Isolamento entre clientes (contas, membros, dados fiscais, convites, auditoria).
-- Convites: token aleatório de 256 bits, só o hash na BD, expiram em 7 dias, uso único, ligados ao email.
-- Auditoria append-only (UPDATE/DELETE/TRUNCATE bloqueados), sem valores pessoais.
-- Redirecionamento seguro (`safeRedirectPath`) contra *open redirect*.
-- Respostas neutras em registo/recuperação (sem enumeração de contas).
-- Cabeçalhos: HSTS, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy, COOP.
-- Palavra-passe: mínimo 12 caracteres.
+## Controlos implementados e testados (Fase 0, PostgreSQL 16 real)
+| Controlo | Prova |
+|---|---|
+| RLS ativa em todas as tabelas de `public`; `anon` sem privilégios nem funções | `tests/db/migrations.test.ts` (também protege migrações futuras) |
+| Isolamento entre clientes (contas, membros, convites, faturação, perfis, auditoria) | `tests/db/customers.test.ts`, `audit.test.ts` |
+| RBAC da equipa: BD ≡ matriz TypeScript, cliente sem permissões, equipa inativa sem acesso | `tests/db/rbac.test.ts` |
+| Faturação só para admins da conta e funções financeiras; comercial/produção excluídos | `customers.test.ts` |
+| Convites: token de 256 bits, só o hash na BD, 7 dias, uso único, ligado ao email, mensagem única | `customers.test.ts` |
+| Nunca ficar sem proprietário (conta) nem sem administrador (plataforma); funções de sistema protegidas | `customers.test.ts`, `rbac.test.ts` |
+| Auditoria append-only; sem valores pessoais/fiscais; leitura por `audit.read` ou admin da conta | `audit.test.ts` |
+| Funções `security definer` com `search_path` fixo | `migrations.test.ts` |
+| Fronteiras de código e chave de serviço só no servidor; sem segredos em `NEXT_PUBLIC_*` | `tests/architecture` (com auto-teste) |
+| Backups cifrados e restauro verificado | `pnpm backup:verify` |
+| Cabeçalhos HSTS, nosniff, X-Frame-Options, Referrer-Policy, Permissions-Policy, COOP | `next.config.ts` (verificado manualmente na Fase anterior; teste automático na Fase 1) |
 
-## Implementado e testado na Fase 1 (testes locais; ver docs/TESTES.md §B)
-- Bucket privado; políticas do Storage ligadas à BD (pertença à conta + versão `available`).
-- `available` só é atribuído pelo servidor após verificar tamanho, SHA-256 e assinatura do ficheiro; nenhum cliente consegue marcar um ficheiro como disponível (testado).
-- Imutabilidade de versões (gatilho) e aprovação explícita; nomes de ficheiro saneados e caminhos só com UUIDs (sem *path traversal*).
-- Isolamento de projetos, ficheiros, moradas, contactos e dados fiscais entre clientes; operadores sem dados fiscais.
-- Auditoria de alterações a moradas/contactos/ficheiros sem guardar o conteúdo.
-- Erros da BD nunca chegam ao utilizador com detalhes técnicos.
-- A chave de serviço só existe em código `server-only` (verificado: não aparece no *bundle* do browser).
-- Travão de abuso: máx. 20 uploads pendentes por utilizador/hora.
+Mutação manual: 6 políticas RLS sabotadas de propósito — todas detetadas pela suite.
 
-## Limitações conhecidas da Fase 1
-- **Sem antivírus**: a verificação por assinatura só deteta ficheiros que não correspondem à extensão; não deteta malware dentro de um formato válido (Fase 7).
-- Sem quotas de armazenamento por conta (decisão de negócio pendente).
-- A aceitação do convite ocorre ao abrir a ligação (autenticado, email coincidente); sem envio de email — a ligação é copiada manualmente.
-- Uploads `pending` abandonados não expiram ainda.
+## Ainda não coberto (fases seguintes)
+- CSP com nonce e testes de cabeçalhos (Fase 1). 2FA obrigatório da equipa e fluxos de Auth reais (Fase 2).
+- Storage privado, validação/antivírus de ficheiros, hash e versões imutáveis (Fase 2).
+- Limitação de pedidos e anti-abuso em formulários públicos (Fase 1).
+- RGPD: política de privacidade, base legal, registo de tratamentos, subcontratantes (Supabase, SMTP), exportação/eliminação de dados,
+  retenção (dados de faturação podem ter obrigação legal de conservação: validar com contabilista). Rotina de eliminação explícita (Fase 10).
+- Testes de integração contra um projeto Supabase de *staging*.
 
-## Por fazer (fases seguintes / ações do proprietário)
-- **CSP** com nonce (Fase 7). **2FA** obrigatório para a equipa (configurar no Supabase + exigir na app, Fase 6).
-- Limitação de pedidos além da do Supabase Auth; CAPTCHA no registo se houver abuso.
-- Ficheiros: bucket privado, antivírus, validação de tipo/tamanho, hash SHA-256 (Fase 1).
-- RGPD: política de privacidade, termos, base legal, registo de tratamentos, subcontratantes (Supabase, email), exportação/eliminação de dados, retenção (dados fiscais podem exigir conservação legal — validar com contabilista/jurista). Os termos referidos no registo ainda não têm texto/ligação.
-- Backups: ativar *Point-in-Time Recovery* (plano pago) ou backups diários e testar restauro.
-- Registo de erros (Sentry ou equivalente), sem dados pessoais nos logs.
+## Princípios
+Nunca expor `service_role`; nunca dados reais em testes; auditoria sem dados pessoais; negar por omissão; um erro técnico nunca chega ao utilizador.

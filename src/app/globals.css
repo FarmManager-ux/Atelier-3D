@@ -1,25 +1,79 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens do Atelier 3D (identidade: preto, grafite, branco, cinzento e laranja).
+ * Conceito: precisão industrial de FDM. Dois lados da mesma marca:
+ *  - "oficina" (escuro, grafite): site público, painel de produção;
+ *  - "papel" (claro): documentos, orçamentos, áreas de leitura.
+ * A Fase 1 constrói o design system completo sobre estes tokens.
+ */
+@theme {
+  --color-ink-950: #0a0a0b;
+  --color-graphite-900: #141619;
+  --color-graphite-800: #1c1f23;
+  --color-graphite-700: #272b30;
+  --color-graphite-600: #363b42;
+  --color-steel-500: #6c727c;
+  --color-steel-400: #8b919b;
+  --color-steel-300: #b3b8c0;
+  --color-steel-200: #d3d6db;
+  --color-paper-100: #ececea;
+  --color-paper-50: #f6f6f4;
+  --color-signal-600: #e0540a;
+  --color-signal-500: #ff6a13;
+  --color-signal-400: #ff8a42;
+
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
 :root {
-  --bg: #fafaf9;
-  --fg: #1c1917;
-  --muted: #57534e;
-  --border: #d6d3d1;
-  --brand: #c2410c;
-  --brand-fg: #ffffff;
-  --danger: #b91c1c;
-  --ok: #166534;
+  color-scheme: dark;
+  --surface: var(--color-ink-950);
+  --surface-raised: var(--color-graphite-800);
+  --text: var(--color-paper-50);
+  --text-muted: var(--color-steel-300);
+  --line: var(--color-graphite-600);
+  --accent: var(--color-signal-500);
+  --accent-contrast: var(--color-ink-950);
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0c0a09;
-    --fg: #fafaf9;
-    --muted: #a8a29e;
-    --border: #44403c;
-    --brand: #fb923c;
-    --brand-fg: #1c1917;
-    --danger: #f87171;
-    --ok: #4ade80;
-  }
+
+/* Variante clara: documentos e áreas de leitura (aplicada com data-surface="paper"). */
+[data-surface="paper"] {
+  color-scheme: light;
+  --surface: var(--color-paper-50);
+  --surface-raised: #ffffff;
+  --text: var(--color-ink-950);
+  --text-muted: var(--color-steel-500);
+  --line: var(--color-steel-200);
+  --accent: var(--color-signal-600);
+  --accent-contrast: #ffffff;
 }
-body { background: var(--bg); color: var(--fg); }
+
+body {
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* Textura de camadas FDM: linhas finas horizontais, como as camadas de uma peça impressa. */
+.layers {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 7px,
+    color-mix(in srgb, var(--color-steel-400) 14%, transparent) 7px,
+    color-mix(in srgb, var(--color-steel-400) 14%, transparent) 8px
+  );
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rise { animation: rise 0.5s ease-out both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+}

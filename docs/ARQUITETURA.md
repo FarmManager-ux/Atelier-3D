@@ -1,60 +1,65 @@
 # Arquitetura
 
-Monólito modular em Next.js, com Supabase como backend gerido (PostgreSQL + Auth + Storage), região UE.
+Monólito modular em **Next.js (App Router) + TypeScript + Tailwind**, com **Supabase** (PostgreSQL, Auth, Storage, RLS)
+como backend principal. Sem serviços pagos. Domínio: `portal.atelier3d.pt`. O site `www.atelier3d.pt` (Shopify) é
+independente e não tem qualquer integração.
 
-## Decisões (aprovadas)
-| # | Decisão | Nota |
+## Camadas e fronteiras
+```
+src/app/          rotas e UI (route groups): (public) site · (auth) · cliente/ · admin/ · api/
+src/modules/<m>/  módulos de negócio: domain/ (puro) · server/ (Supabase, chave de serviço) · ui/ · index.ts (API pública)
+src/shared/       infraestrutura transversal: config, supabase, security, validation, i18n
+supabase/         migrações SQL versionadas
+tests/            db/ (PostgreSQL real) · architecture/ (regras de fronteiras)
+scripts/          backup, restauro, geração de seed RBAC
+```
+Regras impostas automaticamente por `tests/architecture` (o CI falha se forem quebradas):
+- R1 um módulo usa outro só pela API pública (`@/modules/x`), nunca por caminhos internos; módulos não importam de `@/app`.
+- R2 `domain/` é puro: sem React, Next, Supabase nem `server-only`.
+- R3 `shared/` não depende de módulos nem de rotas.
+- R4 a chave de serviço (`@/shared/supabase/admin`) só em `modules/*/server/`, `api/`, `actions.ts` e `route.ts`.
+- R5 ficheiros `"use client"` nunca importam código de servidor. R6 `SUPABASE_SERVICE_ROLE` só em dois ficheiros. R7 sem segredos em `NEXT_PUBLIC_*`.
+
+## Módulos (mapa final)
+| Módulo | Fase | Responsabilidade |
 |---|---|---|
-| 1 | Next.js + TypeScript + PostgreSQL | |
-| 2 | Supabase (BD, Auth, Storage) numa região da UE | Frankfurt (`eu-central-1`) recomendado; Paris/Londres também servem. Ver ações manuais. |
-| 3 | Contas empresariais multiutilizador desde o início | `accounts` + `account_members` (owner/admin/member) + convites |
-| 4 | Ficheiros 3D privados, com histórico por versão | Fase 1 (bucket privado, URLs assinados, versões imutáveis) |
-| 5 | Orçamentos manuais antes do simulador | Fases 2 → 3 |
-| 6 | Sem pagamentos nesta fase | Apenas pontos de extensão |
-| 7 | Domínio `conta.atelier3d.pt` | Sem alterar DNS/site sem confirmação |
-| 8 | Simulador bloqueado | Até serem analisadas as regras reais |
+| `identity` | 0 | Autenticação, contas de clientes, equipa e permissões (RBAC) — **existe** |
+| `catalog` | 0/4/8 | Materiais e equipamentos FDM — **catálogo inicial existe** |
+| `content` | 1 | Conteúdo do site público (portefólio, FAQ, serviços) |
+| `files` | 2 | Ficheiros privados e versões imutáveis |
+| `crm`, `messaging` | 3 | Contactos, interações, mensagens, notificações |
+| `quotes`, `estimator` | 4 | Orçamentos e motor FDM (domínio puro e testável) |
+| `modeling` | 5 | Serviço de modelação 3D |
+| `orders`, `documents` | 6 | Encomendas e documentos |
+| `production` | 7 | Trabalhos, planeamento, falhas, qualidade |
+| `inventory` | 8 | Impressoras, bobines, stock, manutenção |
+| `finance`, `reports` | 9 | Custos, margens, relatórios |
+| `automations` | 10 | Regras e tarefas agendadas |
 
-## Modelo de dados (Fase 0)
-- `profiles` (1:1 com `auth.users`) · `staff_members` (equipa: `admin`/`operator`)
-- `accounts` (`individual` | `company`) · `account_members` (papel por conta) · `account_invitations` (token só em hash, 7 dias)
-- `account_fiscal_data` (NIF/nome fiscal, separado; visível a owner/admin da conta e admins da equipa; **não** a operadores)
-- `audit_log` (append-only; guarda ações e nomes de colunas alteradas, nunca valores pessoais/fiscais)
+## Segurança por camadas
+1. `proxy.ts` fecha `/cliente` e `/admin` sem sessão (falha segura se o Supabase não estiver configurado).
+2. Server Actions/Route Handlers validam entradas com Zod e verificam permissões.
+3. **RLS no PostgreSQL é a barreira final**: negar por omissão, `anon` sem privilégios, privilégios mínimos por coluna.
+4. Operações sensíveis em RPC `security definer` com `search_path` vazio; funções auxiliares em `app_private` (fora da API).
+5. Auditoria append-only de alterações (colunas alteradas; valores só de colunas explicitamente seguras).
 
-## Modelo de dados (Fase 1)
-- `accounts` ganha dados comerciais (telefone, site, email de faturação, atividade); `account_fiscal_data` valida o NIF português (dígito de controlo) **na BD**.
-- `account_contacts` (um principal por conta) e `account_addresses` (faturação/envio/outra, código postal PT `0000-000`, uma predefinida por tipo).
-- `projects` → `files` (ficheiro lógico: tipo `model_3d`/`image`, versão aprovada, arquivo) → `file_versions` (**imutáveis**: caminho, tamanho, SHA-256 declarado e verificado, estado `pending|available|rejected`).
-- `file_type_rules`: formatos e limites (STL/3MF/STEP/STP/OBJ até 100 MB; PNG/JPG/JPEG/WebP até 15 MB). Valores propostos por mim e ainda **não confirmados por si** — são configuráveis.
-- Integridade composta: um ficheiro só pode ficar num projeto **da mesma conta** (FK composta).
+## Modelo de acesso
+- **Clientes**: `customer_accounts` (particular ou empresa) + `customer_members` (`owner`/`admin`/`member`). Só veem o que pertence às suas contas.
+- **Equipa**: `staff_members` → função → permissões (`has_permission('módulo.ação')`). O `admin` tem sempre todas as permissões.
+  Funções: admin, gestor, comercial, produção, financeiro, modelação 3D. Funções personalizadas criam-se no painel (Fase 2/6) sem alterar código.
+- Dados de faturação em tabela separada: admins da conta e equipa com `customers.billing.*`.
+- Toda a tabela nova: RLS ativa, `revoke ... from anon`, testes de isolamento. O teste `migrations.test.ts` falha se alguma tabela de `public` ficar sem RLS.
 
-## Fluxo de upload (seguro)
-1. O browser calcula o SHA-256 e chama `prepareUpload` (Server Action): valida formato/tamanho, chama `begin_file_upload` (permissões na BD) e pede um URL de upload assinado ao Storage.
-2. O browser envia o ficheiro **diretamente** para o Storage (não passa pelo servidor Next.js; sem limite de 4,5 MB do alojamento). A política do Storage só deixa escrever no caminho reservado pelo próprio autor.
-3. `completeUpload`: o servidor (chave de serviço) descarrega em *streaming*, confirma **tamanho real**, **SHA-256** e **assinatura do formato**; só então chama `complete_file_upload`, que passa a versão a `available`. Falha → `rejected` e objeto apagado.
-4. Só versões `available` são visíveis a colegas/equipa e descarregáveis (URL assinado de 60 s gerado com a sessão do utilizador, sujeito à RLS do Storage).
-Caminho no Storage: `{account_id}/{file_id}/{version_id}` (só UUIDs; o nome original fica na BD).
+## Convenções de migrações
+Ficheiros `AAAAMMDDHHMMSS_nome.sql`, ordem alfabética, **aditivas** (nunca `drop` de dados; nomes existentes fazem falhar, não apagar).
+A seed de permissões é **gerada** de `src/modules/identity` (`pnpm exec tsx scripts/gen-rbac-seed.ts`) e validada por teste de paridade.
+Uma migração aplicada em produção nunca se edita: cria-se uma nova.
 
-## Garantias de versionamento
-- Versões nunca são alteradas ou apagadas (gatilho, mesmo para SQL privilegiado); apagar exige a rotina RGPD explícita.
-- Nova versão **nunca** muda a versão aprovada; a aprovação é uma ação explícita de owner/admin (ou admin da equipa) e fica na auditoria.
+## Ferramentas (todas gratuitas e abertas)
+Next.js, React, TypeScript, Tailwind, Zod, Vitest, ESLint, tsx, Playwright (fases seguintes), Fontsource (Barlow Condensed, IBM Plex),
+PostgreSQL/pg_dump/openssl (backups), GitHub Actions. Supabase no plano gratuito (limites em DECISOES-PENDENTES.md).
 
-## Permissões
-| Papel | Conta | Membros | Fiscais | Convites | Auditoria |
-|---|---|---|---|---|---|
-| member | ler | ler | — | — | — |
-| admin | ler/editar nome | gerir não-owners | ler/editar | convidar `member` | ler (da conta) |
-| owner | idem | gerir todos | idem | convidar `member`/`admin` | idem |
-| staff operator | ler | ler | — | — | — |
-| staff admin | tudo | ler | ler/editar | ler | tudo |
-
-Fase 1: contactos e moradas — leitura por qualquer membro, escrita por owner/admin. Projetos — qualquer membro cria/edita (sem eliminar). Ficheiros — qualquer membro carrega; só owner/admin aprovam versões e arquivam; a equipa (operador e admin) lê ficheiros disponíveis, mas operadores continuam sem dados fiscais.
-
-Regras na BD: conta de particular tem 1 utilizador; nunca fica sem proprietário; tipo/criador da conta imutáveis.
-
-## Camadas de proteção
-1. `proxy.ts` fecha rotas privadas (sem sessão → `/entrar`; sem configuração → falha segura).
-2. Server Actions validam com Zod. 3. RLS na BD é a barreira final. 4. Operações sensíveis (criar conta, convites) só por RPC `security definer` com `search_path` vazio.
-Funções auxiliares ficam em `app_private` (fora da API).
-
-## Testes da base de dados
-Docker/Supabase CLI não existem nas sessões cloud. As migrações (SQL puro) são aplicadas a um PostgreSQL 16 com um *shim* mínimo de `auth` (`tests/db/supabase-shim.sql`). Limitação: não valida PostgREST, o Auth real nem o Storage. Quando houver um projeto Supabase de *staging*, acrescentar testes de integração contra ele.
+## Design (base na Fase 0, sistema completo na Fase 1)
+Preto `#0a0a0b`, grafite `#141619–#363b42`, cinzentos `#6c727c–#d3d6db`, branco-papel `#f6f6f4`, laranja de sinalização `#ff6a13`.
+Tipografia: Barlow Condensed (títulos, sinalética industrial), IBM Plex Sans (texto), IBM Plex Mono (dados). Motivo: linhas de
+camadas FDM. Duas superfícies: "oficina" (escura) e "papel" (clara, para documentos e leitura).

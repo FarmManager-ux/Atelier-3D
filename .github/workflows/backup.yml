@@ -1,0 +1,42 @@
+name: Backup da base de dados
+
+# Backup cifrado semanal (pg_dump + openssl; sem serviços pagos).
+# Só corre se os segredos estiverem configurados (ver docs/BACKUPS.md); caso contrário, termina sem erro.
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+      BACKUP_DIR: ${{ runner.temp }}/backups
+    steps:
+      - name: Verificar segredos
+        id: gate
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::notice::Segredos SUPABASE_DB_URL/BACKUP_PASSPHRASE não configurados: backup ignorado."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+      - name: Criar backup cifrado
+        if: steps.gate.outputs.run == 'true'
+        run: bash scripts/backup.sh
+      - uses: actions/upload-artifact@v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          name: atelier3d-backup
+          path: ${{ runner.temp }}/backups/*
+          retention-days: 30
+          if-no-files-found: error
