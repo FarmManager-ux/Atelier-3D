@@ -17,7 +17,6 @@ jobs:
     env:
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
-      BACKUP_DIR: ${{ runner.temp }}/backups
     steps:
       - name: Verificar segredos
         id: gate
@@ -32,6 +31,8 @@ jobs:
         if: steps.gate.outputs.run == 'true'
       - name: Criar backup cifrado
         if: steps.gate.outputs.run == 'true'
+        env:
+          BACKUP_DIR: ${{ runner.temp }}/backups
         run: bash scripts/backup.sh
       - uses: actions/upload-artifact@v4
         if: steps.gate.outputs.run == 'true'
