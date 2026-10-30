@@ -28,5 +28,7 @@ psql "$RESTORE_DB_URL" -v ON_ERROR_STOP=1 -q -c "create schema if not exists ext
 psql "$RESTORE_DB_URL" -v ON_ERROR_STOP=1 -q -f "$work/01-auth-data.sql"
 # O esquema "public" já existe em qualquer base PostgreSQL/Supabase.
 sed -i '/^CREATE SCHEMA public;$/d' "$work/02-app.sql"
+# Backups feitos por pg_dump 17+ (compatibilidade com servidores mais antigos).
+sed -i '/^SET transaction_timeout = /d' "$work/01-auth-data.sql" "$work/02-app.sql"
 psql "$RESTORE_DB_URL" -v ON_ERROR_STOP=1 -q -f "$work/02-app.sql"
 echo "Restauro concluído."

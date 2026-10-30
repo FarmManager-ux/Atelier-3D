@@ -35,5 +35,10 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test            # unitários + arquitetura + base de dados (PostgreSQL 16)
+      - name: Cliente PostgreSQL 16 (pg_dump/psql iguais ao servidor)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-16
+          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
       - run: pnpm backup:verify   # backup cifrado + restauro verificado
       - run: pnpm build

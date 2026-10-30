@@ -25,6 +25,9 @@ pg_dump "$SUPABASE_DB_URL" --data-only --no-owner --no-privileges \
 pg_dump "$SUPABASE_DB_URL" --no-owner --no-privileges \
   --schema=public --schema=app_private > "$work/02-app.sql"
 
+# Compatibilidade: pg_dump 17+ escreve opções que servidores mais antigos (ex.: PostgreSQL 15/16) rejeitam.
+sed -i '/^SET transaction_timeout = /d' "$work/01-auth-data.sql" "$work/02-app.sql"
+
 tar -C "$work" -czf "$work/backup.tar.gz" 01-auth-data.sql 02-app.sql
 target="$out_dir/atelier3d-$stamp.tar.gz.enc"
 openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \

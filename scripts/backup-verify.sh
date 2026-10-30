@@ -7,16 +7,20 @@ cd "$(dirname "$0")/.."
 
 admin="${TEST_DATABASE_URL:-postgres://atelier_test:test@127.0.0.1:5432/postgres}"
 base="${admin%/*}"
-src="atelier_bk_src_$$"; dst="atelier_bk_dst_$$"; tmp="$(mktemp -d)"
+src="atelier_bk_src_$$"; dst="atelier_bk_dst_$$"; tmp="$(mktemp -d)"; log="$tmp/verify.log"; : > "$log"
+for tool in psql pg_dump openssl tar sha256sum; do command -v "$tool" >/dev/null || { echo "Ferramenta em falta: $tool" >&2; exit 2; }; done
+echo "versões: $(pg_dump --version) | $(psql --version)" | tee -a "$log"
+on_err() { code=$?; echo "FALHA (código $code). Últimas linhas do registo:" >&2; tail -n 25 "$log" >&2; echo "::error title=backup:verify::$(tail -n 12 "$log" | tr '\n' ' ' | cut -c1-1500)"; }
+trap on_err ERR
 cleanup() { psql "$admin" -qc "drop database if exists $src with (force)" -c "drop database if exists $dst with (force)" >/dev/null 2>&1 || true; rm -rf "$tmp"; }
 trap cleanup EXIT
 
 prepare() { # shim do Supabase + migrações
-  psql "$base/$1" -v ON_ERROR_STOP=1 -q -f tests/db/supabase-shim.sql >/dev/null 2>&1
+  psql "$base/$1" -v ON_ERROR_STOP=1 -q -f tests/db/supabase-shim.sql >>"$log" 2>&1
 }
 psql "$admin" -qc "create database $src" -c "create database $dst"
 prepare "$src"
-for f in $(ls supabase/migrations/*.sql | sort); do psql "$base/$src" -v ON_ERROR_STOP=1 -q -f "$f" >/dev/null 2>&1; done
+for f in $(ls supabase/migrations/*.sql | sort); do psql "$base/$src" -v ON_ERROR_STOP=1 -q -f "$f" >>"$log" 2>&1; done
 
 # dados de exemplo (fictícios)
 psql "$base/$src" -v ON_ERROR_STOP=1 -q -o /dev/null <<'SQL'
@@ -28,7 +32,7 @@ SQL
 
 
 export SUPABASE_DB_URL="$base/$src" BACKUP_PASSPHRASE="frase-de-teste-nao-secreta" BACKUP_DIR="$tmp"
-bash scripts/backup.sh >/dev/null
+bash scripts/backup.sh >>"$log" 2>&1
 file="$(ls "$tmp"/*.enc)"
 
 # o ficheiro cifrado não pode conter dados legíveis
@@ -38,7 +42,7 @@ if RESTORE_DB_URL="$base/$dst" BACKUP_PASSPHRASE="errada" bash scripts/restore.s
   echo "FALHA: restauro aceitou palavra-passe errada" >&2; exit 1; fi
 
 prepare "$dst"
-RESTORE_DB_URL="$base/$dst" bash scripts/restore.sh "$file" >/dev/null
+RESTORE_DB_URL="$base/$dst" bash scripts/restore.sh "$file" >>"$log" 2>&1
 
 # nunca restaura por cima de dados existentes
 if RESTORE_DB_URL="$base/$dst" bash scripts/restore.sh "$file" >/dev/null 2>&1; then
